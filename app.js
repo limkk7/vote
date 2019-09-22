@@ -19,8 +19,8 @@ app.use(express.urlencoded({
 }))
 
 app.get('/', (req, res, next) => {
-  console.log(req.cookies.user)
-  console.log(req.signedCookies.user)
+  // console.log(req.cookies.user)//未签名的cookie
+  // console.log(req.signedCookies.user)//已签名的cookie
   if(req.signedCookies.user) {
     res.send(`
     <div>
@@ -84,9 +84,11 @@ app.route('/login')
     </script>
     `)
   })
-  .post((req, res, next) => {
+  .post(async (req, res, next) => {
     let tryUserInfo = req.body
-    if(users.some((it) => {return it.name == tryUserInfo.name && it.pwd == tryUserInfo.pwd})) {
+    let user = await db.get('SELECT * FROM users WHERE name=? AND pwd=?', tryUserInfo.name, tryUserInfo.pwd)
+    console.log(user)
+    if(user) {
       res.cookie('user', tryUserInfo.name, {
         signed:true,
         httpOnly: true,
@@ -125,18 +127,38 @@ app.route('/register')
     </div>
     `)
   })
-  .post((req, res, next) => {//ajax重写
-    let userInfo = req.body
-    if(users.some((it) => {return it.name == userInfo.name})) {
-      res.send(`<h2>用户名已被占用</h2>`)
+  .post(async (req, res, next) => {//ajax重写
+    let regInfo = req.body
+    let user = await db.get('SELECT * FROM users WHERE name=?',regInfo.name)
+    if(user) {
+      res.send(`<h2>用户名已被占用</h2>
+      <script>
+        setTimeout(() => {
+          location.href='/register'
+        }, 1300)
+      </script>
+      `)
       // res.redirect('/register')
-    }else if(users.some((it) => {return it.email == userInfo.email})){
-      res.send(`邮箱已注册`)
+    }else if(await db.get('SELECT * FROM users WHERE email=?', regInfo.email)){
+      res.send(`邮箱已注册
+      <script>
+        setTimeout(() => {
+          location.href='/register'
+        }, 1300)
+      </script>
+      `)
       // res.redirect('/register')
     }else {
-      users.push(userInfo)
-      console.log(users)
-      res.redirect('/login')
+      await db.run('INSERT INTO users (name, email, pwd) VALUES(?,?,?)', regInfo.name, regInfo.email, regInfo.pwd)
+
+      res.send(`注册成功
+      <script>
+        setTimeout(() => {
+          location.href='/'
+        }, 1300)
+      </script>
+      `)
+      // res.redirect('/login')
     }
     res.end()
   })
@@ -164,7 +186,7 @@ app.route('/forgot')
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8')
         xhr.onload = () => {
           if(JSON.parse(xhr.responseText).email == 1) {
-            alert('已向您的邮箱发送密码重置链接')
+            alert('已向您的邮箱发送密码重置链接,请于20分钟内点击链接修改密码。')
             location.href='/'
           }else {
             alert('邮箱不存在')
@@ -175,17 +197,20 @@ app.route('/forgot')
     </script>
     `)
   })
-  .post((req, res, next) => {
+  .post(async(req, res, next) => {
     let email = req.body.email
-    if(users.some((it) => {return it.email == email})) {
+    let user = await db.get('SELECT * FROM users WHERE email=?', email)
+    if(user) {
       let token = Math.random().toString().slice(2)
       changePassToken[token] = email
       setTimeout(() => {
         delete changePassToken[token]
-      }, 1000 * 60 * 10)
+      }, 1000 * 60 * 20)
       let link = `http://localhost:9090/changePass/${token}`
       console.log(link)
-      // res.json({email:1})
+      res.json({email:1})
+      //邮件发送
+      return
       mailer.sendMail({
         from: '401688138@qq.com',
         to: email,
@@ -205,9 +230,9 @@ app.route('/forgot')
   })
 
 app.route('/changePass/:token')
-  .get((req, res, next) => {
+  .get(async (req, res, next) => {
     let token = req.params.token
-    let user = users.find((it)=> {return it.email == changePassToken[token]})
+    let user = await db.get('SELECT * FROM users WHERE email=?',changePassToken[token])
     if(user) {
       res.send(`
       此页面可以重置${user.name}的密码
@@ -220,16 +245,28 @@ app.route('/changePass/:token')
       res.redirect('/')
     }
   })
-  .post((req, res, next) => {
+  .post(async (req, res, next) => {
+    let pwd = req.body.pwd
     let token = req.params.token
-    let user = users.find((it)=> {return it.email == changePassToken[token]})
+    let user = await db.get('SELECT * FROM users WHERE email=?',changePassToken[token])
     if(user) {
-      console.log(req.body.pwd)
-      user.pwd  = req.body.pwd
+      await db.run('UPDATE users SET pwd=? where name=?', pwd, user.name)
       delete changePassToken[token]
-      res.send(`密码重置成功`)
+      res.send(`密码重置成功
+      <script>
+        setTimeout(() => {
+          location.href='/login'
+        }, 1300)
+      </script>
+      `)
     }else {
-      res.send(`此链接已失效`)
+      res.send(`此链接已失效
+      <script>
+        setTimeout(() => {
+          location.href='/login'
+        }, 1300)
+      </script>
+      `)
     }
   })
 
