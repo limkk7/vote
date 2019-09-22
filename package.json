@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "voting system",
   "dependencies": {
-    "express": "^4.17.1"
+    "cookie-parser": "^1.4.4",
+    "express": "^4.17.1",
+    "nodemailer": "^6.3.0",
+    "sqlite": "^3.0.3"
   }
 }
