@@ -10,22 +10,30 @@ let db
 
 let changePassToken = {}
 
-app.use(express.static(__dirname + './static'))
+app.set('views', __dirname + '/tpl')//默认
+// app.set('view engine', 'pug')
+app.locals.pretty = true//格式化pug输出代码
 
-app.use(cookieParser('v2ray'))
+app.use(express.static(__dirname + '/static'))
 
+//解析json请求体的中间件
+app.use(express.json())
+//解析url编码的中间件
 app.use(express.urlencoded({
   extended : true,
 }))
 
+app.use(cookieParser('v2ray'))
+
 app.get('/', (req, res, next) => {
   // console.log(req.cookies.user)//未签名的cookie
-  // console.log(req.signedCookies.user)//已签名的cookie
+  console.log(req.signedCookies.user)//已签名的cookie
   if(req.signedCookies.user) {
+    
     res.send(`
     <div>
-        <span>Welcome, ${req.signedCookies.user}</span><br/>
-        <a href="/create">创建投票</a><br/>
+        <span>Welcome, ${req.signedCookies.user.name}</span><br/>
+        <a href="/create.html">创建投票</a><br/>
         <a href="/logout">登出</a>
     </div>
     `)
@@ -39,18 +47,68 @@ app.get('/', (req, res, next) => {
       `)
     }
 })
-
-app.get('create', (req, res, next) => {
-
+//创建投票页面
+app.post('/create-vote', async(req, res, next) => {
+  let voteInfos = req.body
+  let userid = req.signedCookies.user.id
+  
+  console.log(voteInfos)
+  let lastItem = await db.run('INSERT INTO votes (title, desc, userid, singleSelect, deadline, anonymous) VALUES(?,?,?,?,?,?)',
+    voteInfos.title, voteInfos.desc, userid, voteInfos.singleSelect, new Date(voteInfos.deadline).getTime(), voteInfos.anonymous
+  )
+  // let vote = await db.get('SELECT * FROM votes ORDER BY id DESC LIMIT 1')
+  await Promise.all(voteInfos.options.map(option => {
+    return db.run('INSERT INTO options (content, voteid) VALUES (?,?)',option,lastItem.lastID)
+  }))
+  res.redirect('/vote/' + vote.id)
 })
 
-app.get('/vote/:id', (req, res, next) => {
+//投票页面
+app.get('/vote/:id', async (req, res, next) => {
+  let votePromise = db.get('SELECT * FROM votes WHERE id=?', req.params.id)
+  let optionsPromise = db.all('SELECT * FROM options WHERE voteid=?', req.params.id)
+  
+  let vote = await votePromise
+  let options = await optionsPromise
 
+  res.render('vote.pug', {
+    vote: vote,
+    options: options,
+  })
+})
+//投票响应
+app.post('/voteup', async (req, res, next) => {
+  let body =  req.body
+  let user = req.signedCookies.user
+  if(!user) return
+  let voteupInfo = await db.get('SELECT * FROM voteups WHERE userid=? AND voteid=?', user.id, body.voteid)
+  if(voteupInfo) {
+    await db.run('UPDATE voteups SET optionid=? WHERE userid=? AND voteid=?', body.optionid, user.id, body.voteid)
+  }else {
+    await db.run('INSERT INTO voteups (userid, optionid, voteid) VALUES (?,?,?)', user.id, body.optionid, body.voteid)
+  }
+
+  let voteups = await db.all('SELECT * FROM voteups WHERE voteid=?', body.voteid)
+  res.json(voteups)
+})
+
+//投票结果响应
+app.get('/voteup/:voteid/info', async(req, res, next) => {
+  let user = req.signedCookies.user
+  if(!user) return
+  let voteid = req.params.voteid
+  let userVoteupInfo = await db.get('SELECT * FROM voteups WHERE userid=? AND voteid=?', user.id, voteid)
+  if(userVoteupInfo) {
+    let voteups = await db.all('SELECT * FROM voteups WHERE voteid=?', voteid)
+    res.json(voteups)
+  }else {
+    res.json(null)
+  }
 })
 
 //登录
 app.route('/login')
-  .get((req, res, next) => {
+  .get(async (req, res, next) => {
     if(req.signedCookies.user) res.redirect('/')
     res.send(`
     <div>
@@ -89,7 +147,7 @@ app.route('/login')
     let user = await db.get('SELECT * FROM users WHERE name=? AND pwd=?', tryUserInfo.name, tryUserInfo.pwd)
     console.log(user)
     if(user) {
-      res.cookie('user', tryUserInfo.name, {
+      res.cookie('user', user, {
         signed:true,
         httpOnly: true,
       })
