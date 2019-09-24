@@ -1,9 +1,15 @@
 const express = require('express')
 const cookieParser = require('cookie-parser')
+const socket = require('socket.io')
+const http = require('http')
 const mailer = require('./mailer')
-const app = express()
 const sqlite = require('sqlite')
+const url = require('url')
 const port = 9090
+
+const app = express()
+const server = http.createServer(app)
+const ioServer = socket(server)
 
 const dbPromise = sqlite.open(__dirname + '/db/vote.sqlite3')
 let db
@@ -24,6 +30,8 @@ app.use(express.urlencoded({
 }))
 
 app.use(cookieParser('v2ray'))
+
+
 
 app.get('/', (req, res, next) => {
   // console.log(req.cookies.user)//未签名的cookie
@@ -65,12 +73,20 @@ app.post('/create-vote', async(req, res, next) => {
 
 //投票页面
 app.get('/vote/:id', async (req, res, next) => {
+  let user = req.signedCookies.user
+  if(user) {
+    ioServer.on('connection', socket => {
+      let path = url.parse(socket.request.headers.referer).path
+      socket.join(path)
+    })
+  }
   let votePromise = db.get('SELECT * FROM votes WHERE id=?', req.params.id)
   let optionsPromise = db.all('SELECT * FROM options WHERE voteid=?', req.params.id)
   
   let vote = await votePromise
   let options = await optionsPromise
-
+  // console.log(vote)
+  // console.log(options)
   res.render('vote.pug', {
     vote: vote,
     options: options,
@@ -80,14 +96,19 @@ app.get('/vote/:id', async (req, res, next) => {
 app.post('/voteup', async (req, res, next) => {
   let body =  req.body
   let user = req.signedCookies.user
+  let voteid = body.voteid
   if(!user) return
   let voteupInfo = await db.get('SELECT * FROM voteups WHERE userid=? AND voteid=?', user.id, body.voteid)
   if(voteupInfo) {
-    await db.run('UPDATE voteups SET optionid=? WHERE userid=? AND voteid=?', body.optionid, user.id, body.voteid)
+    return res.end()
+    // await db.run('UPDATE voteups SET optionid=? WHERE userid=? AND voteid=?', body.optionid, user.id, body.voteid)
   }else {
     await db.run('INSERT INTO voteups (userid, optionid, voteid) VALUES (?,?,?)', user.id, body.optionid, body.voteid)
+    let voteups = await db.all('SELECT * FROM voteups WHERE voteid=?', body.voteid)
+    ioServer.in(`/vote/${voteid}`).emit('new vote', {
+      data:voteups,
+    })
   }
-
   let voteups = await db.all('SELECT * FROM voteups WHERE voteid=?', body.voteid)
   res.json(voteups)
 })
@@ -97,6 +118,7 @@ app.get('/voteup/:voteid/info', async(req, res, next) => {
   let user = req.signedCookies.user
   if(!user) return
   let voteid = req.params.voteid
+
   let userVoteupInfo = await db.get('SELECT * FROM voteups WHERE userid=? AND voteid=?', user.id, voteid)
   if(userVoteupInfo) {
     let voteups = await db.all('SELECT * FROM voteups WHERE voteid=?', voteid)
@@ -330,7 +352,7 @@ app.route('/changePass/:token')
 
 dbPromise.then(dbObject => {
   db = dbObject
-  app.listen(port, () => {
+  server.listen(port, () => {
     console.log('server listen port' + port)
   })
 })

@@ -8,28 +8,12 @@ block content
     each option in options
       li(data-optionid= option.id)= option.content
         span
-
+  script(src="/socket.io/socket.io.js")
   script.
     let optionList = document.querySelector('#option-list')
-    
-    async function main() {
-      let voteResult = await axios.get(`/voteup/${optionList.dataset.voteid}/info`)
-      if(voteResult.data == null) {
-        return
-      }
-      let count = _.countBy(voteResult.data, 'optionid')
-      //- console.log(document.querySelector('ul').children)
-      _.forEach(document.querySelector('ul').children, (val) => {
-        val.lastChild.textContent = ' /0票' 
-      })
-      _.forEach(count, (val, key) => {
-        document.querySelector(`[data-optionid="${key}"]`).lastChild.textContent = ' /' + val + '票'
-      })
-    }
-
-    main()
-
-    optionList.addEventListener('click', async e => {
+    let optBtn = false
+    optionList.addEventListener('click', async function vote(e){
+      if(optBtn) return
       let optionid = e.target.dataset.optionid
       await axios.post('/voteup', {
         voteid: optionList.dataset.voteid,
@@ -37,3 +21,29 @@ block content
       })
       main()
     })
+    function updateState(voteResult) {
+      console.log(voteResult)
+      let count = _.countBy(voteResult, 'optionid')
+      _.forEach(document.querySelector('ul').children, (val) => {
+        val.lastChild.textContent = ' /0票' 
+      })
+      _.forEach(count, (val, key) => {
+        document.querySelector(`[data-optionid="${key}"]`).lastChild.textContent = ' /' + val + '票'
+      })
+    }
+    async function main() {
+      let voteResult = (await axios.get(`/voteup/${optionList.dataset.voteid}/info`)).data
+      if(voteResult == null) {
+        return
+      }else {
+        optBtn = true
+        updateState(voteResult)
+        let socket = io()
+        socket.on('new vote', data => {
+          updateState(data.data)
+        })
+      }
+    }
+
+    main()
+
