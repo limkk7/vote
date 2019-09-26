@@ -1,0 +1,10 @@
+extends layout.pug
+
+block content
+  div
+    span Welcome, #{user.name}
+    br
+    img(src='/'+user.avatar)
+    a(href='/create.html') 创建投票
+    br
+    a(href='/logout') 登出
