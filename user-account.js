@@ -21,6 +21,28 @@ const upload = multer({
 const app = express.Router()
 
 let changePassToken = {}
+
+//主页
+app.get('/', (req, res, next) => {
+  // console.log(req.cookies.user)//未签名的cookie
+  // console.log(req.signedCookies.user)//已签名的cookie
+  let user = req.signedCookies.user
+  if(user) {
+    res.render('index.pug', {
+      user:user
+    })
+  }else {
+      res.send(`
+        <div>
+          Welcome
+          <a href='/register'>注册</a>
+          <a href='/login'>登录</a>
+        </div>
+      `)
+    }
+})
+
+
 //验证码
 app.get('/captcha', (req, res, next) => {
 
@@ -48,10 +70,7 @@ app.route('/login')
     <script>
       let captchaImg = document.querySelector('.captchaImg')
       captchaImg.onclick = () => {
-        let src = captchaImg.src
-        setTimeout(() => {
-          captchaImg.src = src
-        }, 10)
+          captchaImg.src = '/captcha?' + Date.now()
       }
 
       let loginForm = document.querySelector('.loginForm')

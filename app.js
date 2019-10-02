@@ -8,11 +8,16 @@ let db
 
 const session = require('express-session')
 
-const port = 9090
+// const port = 9090
 
 const app = express()
-const server = http.createServer(app)
-const ioServer = socket(server)
+// const server = http.createServer(app)
+const httpsServer = https.createServer({
+  key : fs.readFileSync('/root/.acme.sh/7.versionlin.com/7.versionlin.com.key'),
+  cert : fs.readFileSync('/root/.acme.sh/7.versionlin.com/7.versionlin.com.cer')
+},app)
+// const ioServer = socket(server)
+const ioServer = socket(httpsServer)
 
 const userAccountRouter = require('./user-account')
 
@@ -49,25 +54,6 @@ app.use(cookieParser('my secret'))
 //   next()
 // })
 
-//主页
-app.get('/', (req, res, next) => {
-  // console.log(req.cookies.user)//未签名的cookie
-  // console.log(req.signedCookies.user)//已签名的cookie
-  let user = req.signedCookies.user
-  if(user) {
-    res.render('index.pug', {
-      user:user
-    })
-  }else {
-      res.send(`
-        <div>
-          Welcome
-          <a href='/register'>注册</a>
-          <a href='/login'>登录</a>
-        </div>
-      `)
-    }
-})
 
 //创建投票页面
 app.post('/create-vote', async(req, res, next) => {
@@ -150,7 +136,10 @@ app.use('/', userAccountRouter)
 
 dbPromise.then(dbObject => {
   db = dbObject
-  server.listen(port, () => {
-    console.log('server listen port' + port)
+  // server.listen(port, () => {
+  //   console.log('server listen port' + port)
+  // })
+  httpsServer.listen(443, () => {
+    console.log('listen 443')
   })
 })
