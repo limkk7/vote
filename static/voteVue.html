@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>vote</title>
+</head>
+<body>
+  <div id="app">
+    <div>
+      <h1>{{voteInfo.title}}</h1>
+      <h3>{{voteInfo.desc}}</h3>
+    </div>
+    <ul class="options" style="cursor: pointer;">
+      <li @click="(code == 0) && vote(option.id)" v-for="option in options"> 
+        {{option.content}} {{code == 1 ? '/' +summary[option.id].length+'票' : ''}}
+        <div v-if="code==1" class="ratio" style="height:3px; background-color: red;" :style="{width:ratioSummary[option.id] * 100 + '%'}"></div>
+      </li>
+    </ul>
+
+    
+  </div>
+  <script src="/assets/vue.js"></script>
+  <script src="/assets/axios.min.js"></script>
+  <script src="/assets/lodash.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    var app = new Vue({
+      el: '#app',
+      async mounted() {
+        let query = location.search.slice(1).split('&').reduce((obj, pair) => {
+          var [key, val] = pair.split('=')
+          obj[key] = val
+          return obj
+        }, {})
+        let request = await axios.get('/vote/'+query.id)
+        let data = request.data
+        console.log(data)
+        this.code = data.code
+        if(this.code == 1) {
+          this.voteups = data.voteups
+          console.log(data.voteups)
+          //this.socket = io('ws://www.xx.com/voteVue.html')
+          this.socket = io()
+          this.socket.on('new vote', data => {
+            console.log(data)
+            this.voteups.push(data.data.voteups)
+          })
+        }
+        this.voteInfo = data.voteInfo
+        this.options = data.options
+      },
+      computed: {
+        summary() {
+
+          let obj = _.mapValues(_.keyBy(this.options, 'id'), () => [])
+          return {
+            ...obj,
+            ..._.groupBy(this.voteups, 'optionid')
+          } 
+        },
+        ratioSummary() {
+          return _.mapValues(this.summary, (val) => {
+            if(val.length == 0) return 0
+            return val.length / this.voteups.length
+          })
+        }
+      },
+      methods: {
+        async vote(optionid) {
+          let req = await axios.post('/voteup', {
+            optionid,
+            voteid:this.voteInfo.id,
+          })
+          let data = req.data
+          console.log(req)
+          if(data.code != 0) {
+            if(data.code == 1) {
+              this.code = data.code
+              this.voteups = data.voteups
+              alert('投票成功')
+            }else {
+              alert('您已投过')
+            }
+          }else {
+            alert('你还未登录')
+            setTimeout(()=> {
+              location.href='/'
+            }, 3000)
+          }
+        }
+      },
+      data: {
+        voteInfo: {},
+        options: [],
+        voteups: [],
+        code:0,
+      },
+    })
+  </script>
+</body>
+</html>

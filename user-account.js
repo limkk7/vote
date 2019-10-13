@@ -20,6 +20,7 @@ const upload = multer({
 
 const app = express.Router()
 
+module.exports = app
 let changePassToken = {}
 
 //主页
@@ -295,4 +296,3 @@ app.route('/changePass/:token')
     }
   })
 
-module.exports = app

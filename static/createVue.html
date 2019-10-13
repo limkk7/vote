@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>创建投票</title>
+
+</head>
+<body>
+  <div id="app">
+    <h2>创建投票</h2>
+     <div><input type="text" placeholder="标题" v-model="voteInfo.title" required></div>
+     <div><input type="text" placeholder="问题描述" v-model="voteInfo.desc"></div>
+    <div v-for="(option, idx) of voteInfo.options">
+      <input type="text" v-model="voteInfo.options[idx]" :placeholder="'选项'+ (idx + 1)" >
+      <button @click="voteInfo.options.splice(idx, 1)">-</button>
+    </div>
+    <div><button @click="voteInfo.options.push('')">添加选项</button></div>
+    <div>截止时间： <input type="datetime-local" v-model="voteInfo.deadline"></div>
+    <div>匿名投票：
+      <label>是<input type="radio" v-model="voteInfo.anonymous" value=1></label>
+      <label>否<input type="radio"  v-model="voteInfo.anonymous" value="0" checked></label>
+    </div>
+    <div>
+      <select v-model="voteInfo.singleSelect">
+        <option value="1">单选</option>
+        <option value="0">多选</option>
+      </select>
+    </div>
+    <button @click="submit">创建投票</button>
+  </div>
+  <script src="./assets/vue.js"></script>
+  <script src="./assets/axios.min.js"></script>
+  
+  <script>
+    var app = new Vue({
+      el:'#app',
+      data:{
+        voteInfo:{
+          title:'',
+          desc: '',
+          options: ['', ''],
+          deadline: new Date(Date.now() + 86400000).toISOString().slice(0,16),
+          anonymous: '0',
+          singleSelect: '1',
+        } 
+      },
+      methods: {
+        async submit() {
+          let request = await axios.post('/create-vote', this.voteInfo)
+          let data = request.data
+          if(data.code) {
+            if(data.code == 2) {
+              alert('投票已创建')
+              location.href = '/voteVue.html?id=' + data.id
+              return
+            }else {
+              location.href = '/voteVue.html?id=' + data.id
+              return
+            }
+          }else {
+            alert('x')
+            return
+          }
+        }
+      }
+    })
+  </script>
+</body>
+</html>

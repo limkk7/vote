@@ -23,7 +23,7 @@ block content
     })
     function updateState(voteResult) {
       console.log(voteResult)
-      let count = _.countBy(voteResult, 'optionid')
+      let count = _.countBy(voteResult.voteups, 'optionid')
       _.forEach(document.querySelector('ul').children, (val) => {
         val.lastChild.textContent = ' /0票' 
       })
