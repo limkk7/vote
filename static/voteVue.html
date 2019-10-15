@@ -57,7 +57,7 @@
           let obj = _.mapValues(_.keyBy(this.options, 'id'), () => [])
           return {
             ...obj,
-            ..._.groupBy(this.voteups, 'optionid')
+            ..._.groupBy(this.voteups, 'optionid') 
           } 
         },
         ratioSummary() {
