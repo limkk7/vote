@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Vote</title>
+    <script src="/assets/vue.js"></script>
+    <script src="/assets/axios.min.js"></script>
+    <script src="/assets/lodash.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/assets/vue-router.js"></script>
+  </head>
+
+  <body>
+    <div id="app">
+      <router-view></router-view>
+    </div>
+
+    <script>
+      var api = axios.create({
+        baseURL: "/api"
+      });
+
+      var Index = {
+        template: `
+        <div>
+          <div v-if="user">
+            <h2>欢迎，<img :src="user.avatar" style="width:40px;height:40px;"> {{user.name}}</h2>
+            <button @click="logout">退出</button>
+            <router-link to="/create">创建投票</router-link>
+          </div>
+          <div v-else>
+            <router-link to="/login">登录</router-link>
+            <router-link to="/register">注册</router-link>
+          </div>
+        </div>
+      `,
+        data() {
+          return {
+            user: null
+          };
+        },
+        methods: {
+          async logout() {
+            await api.get("/logout");
+
+            this.user = null;
+          }
+        },
+        async mounted() {
+          let response = await api.get("/userInfo");
+          let data = response.data;
+          if (data.code == 1) {
+            this.user = data.user;
+          }
+        }
+      };
+      var CreateVote = {
+        template: `
+      
+      `
+      };
+      var ViewVote = {
+        template: `
+      
+      `
+      };
+      var Register = {
+        template: `
+        <div>
+          <h3>注册</h3>
+          <input placeholder="用户名" type="text" v-model="name">
+          <input placeholder="电子邮箱" type="email" v-model="email">
+          <input type="file" placeholder="头像" accept=".jpg, .jpeg, .png" @change="uploadAvatar">
+          <input placeholder="密码" type="password" v-model="pwd">
+          <button @click="register">注册</button>
+        </div>
+      `,
+        methods: {
+          async register() {
+            let data = new FormData();
+            data.append("name", this.name);
+            data.append("pwd", this.pwd);
+            data.append("email", this.email);
+            data.append("avatar", this.avatar);
+            let response = (await api.post("/register", data)).data;
+            if (response.code == 1) {
+              this.$router.push("/");
+            } else {
+              alert(response.msg);
+            }
+          },
+          uploadAvatar(e) {
+            this.avatar = e.target.files[0];
+          }
+        },
+        data() {
+          return {
+            name: "",
+            email: "",
+            pwd: "",
+            avatar: "",
+            avatar: ""
+          };
+        }
+      };
+      var Login = {
+        template: `
+        <div>
+          <h3>登陆</h3>
+          <input placeholder="用户名" type="text" v-model="Info.name">
+          <input placeholder="密码" type="password" v-model="Info.pwd">
+          <button @click="login">登陆</button>
+          <div>
+            <router-link to="/forgot">忘记密码</router-link>
+          </div>
+        </div>
+      `,
+        methods: {
+          async login() {
+            let req = (await api.post("/login", this.Info)).data;
+            if (req.code == 1) {
+              alert(req.msg);
+              // this.msg = req.msg
+              // this.code = req.cod
+              this.$router.push("/");
+            } else {
+              alert(req.msg);
+            }
+            // try {
+            //   await api.post('/login', this.Info)
+            // }catch(e) {
+            //   alert(e.response.data.msg)
+            // }
+          }
+        },
+        data() {
+          return {
+            Info: {
+              name: "",
+              pwd: ""
+            }
+            // msg: "",
+            // code: "",
+          };
+        }
+      };
+      var Forgot = {
+        template: `
+        <div>
+          请输入您注册时的邮箱：<br/>
+          <input type='text' v-model="Info.email">
+          <button @click="changePass">确定</button>
+        </div>
+        `,
+        methods: {
+          async changePass() {
+            let res = (await api.post("/forgot", this.Info)).data;
+            if (res.code == 1) {
+              alert(res.msg);
+              this.$router.push("/");
+            } else {
+              alert(res.msg);
+            }
+          }
+        },
+        data() {
+          return {
+            Info: {
+              email: ""
+            }
+          };
+        }
+      };
+      var ChangePass = {
+        template: `
+          <div>
+            重置密码
+            <input type="password" v-model="Info.pwd">
+            <button @click="change">确定</button>
+          </div>
+        `,
+        async mounted() {
+          let res = (await api.get("/changePass/" + this.$route.params.token))
+            .data;
+          if (res.code == -1) {
+            alert(res.msg);
+            this.$router.push("/");
+          }
+        },
+        methods: {
+          async change() {
+            let res = (await api.post(
+              "/changePass/" + this.$route.params.token,
+              this.Info
+            )).data;
+            alert(res.msg);
+            this.$router.push("/");
+          }
+        },
+        data() {
+          return {
+            Info: {
+              pwd: ""
+            }
+          };
+        }
+      };
+
+      var CreateVote = {
+        template: `
+      <div id="app">
+        <h2>创建投票</h2>
+        <div><input type="text" placeholder="标题" v-model="voteInfo.title" required></div>
+        <div><input type="text" placeholder="问题描述" v-model="voteInfo.desc"></div>
+        <div v-for="(option, idx) of voteInfo.options">
+          <input type="text" v-model="voteInfo.options[idx]" :placeholder="'选项'+ (idx + 1)" >
+          <button @click="voteInfo.options.splice(idx, 1)">-</button>
+        </div>
+        <div><button @click="voteInfo.options.push('')">添加选项</button></div>
+        <div>截止时间： <input type="datetime-local" v-model="voteInfo.deadline"></div>
+        <div>匿名投票：
+          <label>是<input type="radio" v-model="voteInfo.anonymous" value="1"></label>
+          <label>否<input type="radio"  v-model="voteInfo.anonymous" value="0" checked></label>
+        </div>
+        <div>
+          <select v-model="voteInfo.singleSelect">
+            <option value="1">单选</option>
+            <option value="0">多选</option>
+          </select>
+        </div>
+        <button @click="submit">创建投票</button>
+      </div>
+      `,
+        data() {
+          return {
+            voteInfo: {
+              title: "",
+              desc: "",
+              options: ["", ""],
+              deadline: new Date(Date.now() + 86400000)
+                .toISOString()
+                .slice(0, 16),
+              anonymous: "0",
+              singleSelect: "1"
+            }
+          };
+        },
+        methods: {
+          async submit() {
+            let res = (await api.post("/vote", this.voteInfo)).data;
+            if (res.code) {
+              alert(res.msg);
+              this.$router.push("/vote/" + res.id);
+            } else {
+              alert(res.msg);
+            }
+          }
+        }
+      };
+
+      var ViewVote = {
+        template: `
+        <div id="app">
+          <div>
+            <h1>{{voteInfo.title}}</h1>
+            <h3>{{voteInfo.desc}}</h3>
+          </div>
+          <ul class="options" style="cursor: pointer;">
+            <li @click="(code == 0) && vote(option.id)" v-for="option in options"> 
+              {{option.content}} {{code == 1 ? '/' +summary[option.id].length+'票' : ''}}
+              <div v-if="code==1" class="ratio" style="height:3px; background-color: red;" :style="{width:ratioSummary[option.id] * 100 + '%'}"></div>
+            </li>
+          </ul>
+        </div>
+      `,
+      watch: {
+        $route(to, from) {
+          this.init()
+        }
+      },
+      async mounted() {
+        this.init()
+      },
+      computed: {
+          summary() {
+            let obj = _.mapValues(_.keyBy(this.options, "id"), () => []);
+            return {
+              ...obj,
+              ..._.groupBy(this.voteups, "optionid")
+            };
+          },
+          ratioSummary() {
+            return _.mapValues(this.summary, val => {
+              if (val.length == 0) return 0;
+              return val.length / this.voteups.length;
+            });
+          }
+        },
+        methods: {
+          async init() {
+          // let query = location.search
+          //   .slice(1)
+          //   .split("&")
+          //   .reduce((obj, pair) => {
+          //     var [key, val] = pair.split("=");
+          //     obj[key] = val;
+          //     return obj;
+          //   }, {});
+          var id = this.$route.params.id
+          let res = await api.get("/vote/" + id);
+          console.log(res)
+          let data = res.data;
+          console.log(data);
+          this.code = data.code;
+          if (this.code == 1) {
+            this.voteups = data.voteups;
+            console.log(data.voteups);
+            //this.socket = io('ws://www.xx.com/voteVue.html')
+            this.socket = io();
+            this.socket.on("new vote", data => {
+              console.log(data);
+              this.voteups.push(data.data.voteups);
+            });
+          }
+          this.voteInfo = data.voteInfo;
+          this.options = data.options;
+        },
+
+          async vote(optionid) {
+            let req = await api.post("/voteup", {
+              optionid,
+              voteid: this.voteInfo.id
+            });
+            let data = req.data;
+            console.log(req);
+            if (data.code != 0) {
+              if (data.code == 1) {
+                this.code = data.code;
+                this.voteups = data.voteups;
+                alert("投票成功");
+              } else {
+                alert("您已投过");
+              }
+            } else {
+              alert("你还未登录");
+              setTimeout(() => {
+                location.href = "/";
+              }, 3000);
+            }
+          }
+        },
+        data() {
+          return{
+            voteInfo: {},
+            options: [],
+            voteups: [],
+            code: 0
+          }
+        }
+      };
+
+      var router = new VueRouter({
+        routes: [
+          {
+            path: "/",
+            component: Index
+          },
+          {
+            path: "/create",
+            component: CreateVote
+          },
+          {
+            path: "/vote/:id",
+            component: ViewVote
+          },
+          {
+            path: "/login",
+            component: Login
+          },
+          {
+            path: "/register",
+            component: Register
+          },
+          {
+            path: "/changePass/:token",
+            component: ChangePass
+          },
+          {
+            path: "/forgot",
+            component: Forgot
+          }
+        ]
+      });
+      var app = new Vue({
+        el: "#app",
+        router
+      });
+    </script>
+  </body>
+</html>

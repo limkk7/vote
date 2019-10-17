@@ -22,23 +22,24 @@ module.exports = function (ioServerTmp) {
 }
 
 //创建投票页面
-app.post('/create-vote', async(req, res, next) => {
+app.post('/vote', async(req, res, next) => {
   let voteInfos = req.body
-  let userid = req.signedCookies.user.id
+  let userId = req.signedCookies.userId
 
   let info = await db.get('SELECT * FROM votes WHERE title=? AND desc=? AND userid=? AND singleSelect=? AND deadline=? AND anonymous=?', 
-    voteInfos.title, voteInfos.desc, userid, voteInfos.singleSelect, new Date(voteInfos.deadline).getTime(), voteInfos.anonymous
+    voteInfos.title, voteInfos.desc, userId, voteInfos.singleSelect, new Date(voteInfos.deadline).getTime(), voteInfos.anonymous
   )
   if(info) {
     res.json({
       id:info.id,
       info,
-      code:2
+      code:-1,
+      msg:'投票已创建'
     })//投票已创建
     return
   }
     let lastItem = await db.run('INSERT INTO votes (title, desc, userid, singleSelect, deadline, anonymous) VALUES(?,?,?,?,?,?)',
-    voteInfos.title, voteInfos.desc, userid, voteInfos.singleSelect, new Date(voteInfos.deadline).getTime(), voteInfos.anonymous
+    voteInfos.title, voteInfos.desc, userId, voteInfos.singleSelect, new Date(voteInfos.deadline).getTime(), voteInfos.anonymous
   )
   // let vote = await db.get('SELECT * FROM votes ORDER BY id DESC LIMIT 1')
   console.log(lastItem)
@@ -46,23 +47,24 @@ app.post('/create-vote', async(req, res, next) => {
     return db.run('INSERT INTO options (content, voteid) VALUES (?,?)',option,lastItem.lastID)
   }))
 
-  if(req.is('json')) {
+  // if(req.is('json')) {
     res.json({
       id:lastItem.lastID,
       info: lastItem[0],
       code:1,
+      msg:'创建成功'
     })
-  }else {
-    res.redirect('/vote/' + lastItem.lastID)
-  }
+  // }else {
+  //   res.redirect('/vote/' + lastItem.lastID)
+  // }
 })
 
-//投票页面
+//投票信息
 app.get('/vote/:id', async (req, res, next) => {
   let voteid= req.params.id
-  let user = req.signedCookies.user
-  if(user) {
-    let vote = await db.get('SELECT * FROM voteups WHERE userid=? AND voteid=?', user.id, voteid)
+  let userId = req.signedCookies.userId
+  if(userId) {
+    let vote = await db.get('SELECT * FROM voteups WHERE userid=? AND voteid=?', userId, voteid)
     if(vote) {
       let votePromise = db.get('SELECT * FROM votes WHERE id=?', voteid)
       let optionsPromise = db.all('SELECT * FROM options WHERE voteid=?', voteid)
@@ -102,18 +104,19 @@ app.get('/vote/:id', async (req, res, next) => {
 //投票响应
 app.post('/voteup', async (req, res, next) => {
   let body =  req.body
-  let user = req.signedCookies.user
+  let userId = req.signedCookies.userId
   let voteid = body.voteid
-  if(!user) return
-  let voteupInfo = await db.get('SELECT * FROM voteups WHERE userid=? AND voteid=?', user.id, body.voteid)
+  if(!userId) return
+  let voteupInfo = await db.get('SELECT * FROM voteups WHERE userid=? AND voteid=?', userId, body.voteid)
   if(voteupInfo) {
     res.json({
       code: 2,
+      msg:''
     })
     return
     // await db.run('UPDATE voteups SET optionid=? WHERE userid=? AND voteid=?', body.optionid, user.id, body.voteid)
   }else {
-    await db.run('INSERT INTO voteups (userid, optionid, voteid) VALUES (?,?,?)', user.id, body.optionid, body.voteid)
+    await db.run('INSERT INTO voteups (userid, optionid, voteid) VALUES (?,?,?)', userId, body.optionid, body.voteid)
     let voteups = await db.all('SELECT avatar,userid,name,optionid,voteid FROM voteups JOIN users ON voteups.userid=users.id WHERE voteid=?', body.voteid)
     ioServer.in(`/vote/${voteid}`).emit('new vote', {voteups})
   }
@@ -121,6 +124,7 @@ app.post('/voteup', async (req, res, next) => {
   res.json({
     voteups,
     code:1,
+    msg:''
   })
 })
 

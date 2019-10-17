@@ -46,7 +46,7 @@
       },
       methods: {
         async submit() {
-          let request = await axios.post('/create-vote', this.voteInfo)
+          let request = await axios.post('/vote', this.voteInfo)
           let data = request.data
           if(data.code) {
             if(data.code == 2) {

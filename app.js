@@ -1,42 +1,48 @@
 const express = require('express')
 const cookieParser = require('cookie-parser')
 const http = require('http')
-const socket = require('socket.io')
-
+const socketIO = require('socket.io')
+const cors = require('cors')
 // const https = require('https')
 
 // const fs = require('fs')
-const dbPromise = require('./db')
-let db
-
 const session = require('express-session')
-
-const port = 9090
 
 const app = express()
 const server = http.createServer(app)
 
-const ioServer = socket(server)
+const port = 9090
+
+const ioServer = socketIO(server)
+//global.ioServer = ioServer
+
 // const httpsServer = https.createServer({
 //   key : fs.readFileSync('/root/.acme.sh/7.versionlin.com/7.versionlin.com.key'),
 //   cert : fs.readFileSync('/root/.acme.sh/7.versionlin.com/7.versionlin.com.cer')
 // },app)
 
-// const ioServer = socket(httpsServer)
-const voteInfo = require('./vote')
-const userAccountRouter = require('./user-account')
+app.use(cors({
+  maxAge:86400,
+  credentials:true,
+  //origin: http:/xxxxx/
+  origin: function(origin,cb) {
+    cb(null,true)
+  }
+}))
 
-app.set('views', __dirname + '/tpl')//默认
+// const ioServer = socket(httpsServer)
+
+// app.set('views', __dirname + '/tpl')//默认
 // app.set('view engine', 'pug')
-app.locals.pretty = true//格式化pug输出代码
+// app.locals.pretty = true//格式化pug输出代码
 
 app.use(express.static(__dirname + '/static'))
 app.use('/upload', express.static(__dirname + '/upload'))
 
-//解析json请求体的中间件
-app.use(express.json())
-//解析url编码的中间件
-app.use(express.urlencoded({
+
+app.use(express.json())//解析json请求体的中间件
+
+app.use(express.urlencoded({//解析url编码的中间件
   extended : true,
 }))
 
@@ -66,15 +72,15 @@ app.use(cookieParser('my secret'))
 //   next()
 // })
 
-app.use('/', userAccountRouter)
-app.use('/', voteInfo(ioServer))
+const voteInfo = require('./vote')
+const userAccountRouter = require('./user-account')
 
-dbPromise.then(dbObject => {
-  db = dbObject
-  server.listen(port, () => {
-    console.log('server listen port' + port)
-  })
-  // httpsServer.listen(443, () => {
-  //   console.log('listen 443')
-  // })
+app.use('/api',userAccountRouter)
+app.use('/api',voteInfo(ioServer))
+
+server.listen(port, () => {
+  console.log('server listen port' + port)
 })
+// httpsServer.listen(443, () => {
+//   console.log('listen 443')
+// })
