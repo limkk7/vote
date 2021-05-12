@@ -12,7 +12,7 @@
     "nodemailer": "^6.4.16",
     "pug": "^2.0.4",
     "sharp": "^0.23.1",
-    "socket.io": "^2.3.0",
+    "socket.io": "^2.4.0",
     "sqlite": "^3.0.3",
     "svg-captcha": "^1.4.0"
   }
